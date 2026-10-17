@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GitHub Repository Health Analyzer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="/">⌘ RepoPulse</a><span class="tag">GITHUB REPOSITORY ANALYZER</span></header>
+<main class="container">
+  <section class="hero">
+    <div class="eyebrow">OPEN-SOURCE INSIGHTS</div>
+    <h1>Know the health of<br><span>any public repository.</span></h1>
+    <p>Explore project activity, community signals, languages, and a transparent health score in seconds.</p>
+    <form method="post" class="search-form">
+      <label for="repository">GitHub repository</label>
+      <div class="input-row">
+        <input id="repository" name="repository" type="text" placeholder="owner/repository or GitHub URL" value="{{ repo_input }}" required>
+        <button type="submit">Analyze repository <span aria-hidden="true">→</span></button>
+      </div>
+      <small>Try <button class="sample-link" type="button" onclick="document.getElementById('repository').value='psf/requests'">psf/requests</button> or <button class="sample-link" type="button" onclick="document.getElementById('repository').value='pallets/flask'">pallets/flask</button></small>
+    </form>
+  </section>
+  {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+  {% if result %}
+  <section class="results" aria-live="polite">
+    <div class="repo-heading"><div><div class="eyebrow">ANALYSIS RESULT</div><h2>{{ result.name }}</h2><p>{{ result.description }}</p></div><a class="github-link" href="{{ result.url }}" target="_blank" rel="noopener noreferrer">View on GitHub ↗</a></div>
+    <div class="overview-grid">
+      <article class="score-card"><div class="card-label">REPOSITORY HEALTH</div><div class="score-number">{{ result.health.score }}<span>/100</span></div><div class="score-track"><div style="width: {{ result.health.score }}%"></div></div><span class="status status-{{ result.health.label|lower|replace(' ', '-') }}">{{ result.health.label }}</span><p class="muted">Educational heuristic — not an official GitHub score.</p></article>
+      <article class="metric-card"><span>⭐</span><div class="metric-value">{{ "{:,}".format(result.stars) }}</div><div class="metric-label">Stars</div></article>
+      <article class="metric-card"><span>🍴</span><div class="metric-value">{{ "{:,}".format(result.forks) }}</div><div class="metric-label">Forks</div></article>
+      <article class="metric-card"><span>🐛</span><div class="metric-value">{{ "{:,}".format(result.open_issues) }}</div><div class="metric-label">Open issues</div></article>
+      <article class="metric-card"><span>👀</span><div class="metric-value">{{ "{:,}".format(result.watchers) }}</div><div class="metric-label">Watchers</div></article>
+    </div>
+    <div class="content-grid">
+      <article class="panel"><div class="panel-title"><h3>Language breakdown</h3><span class="muted">By bytes reported by GitHub</span></div>
+      {% if result.languages %}<div class="chart-wrap"><canvas id="languageChart" aria-label="Repository language chart"></canvas></div>
+      <ul class="language-list">{% set total = result.languages|sum(attribute=1) %}{% for language, bytes in result.languages %}<li><span class="language-dot dot-{{ loop.index0 % 6 }}"></span><span>{{ language }}</span><strong>{{ (bytes * 100 / total)|round(1) }}%</strong></li>{% endfor %}</ul>
+      {% else %}<p class="muted">No language data is available.</p>{% endif %}</article>
+      <article class="panel"><div class="panel-title"><h3>Health signals</h3><span class="muted">Why this score?</span></div><ul class="signal-list">{% for reason in result.health.reasons %}<li><span class="signal-icon">{{ '!' if ('stale' in reason or 'days ago' in reason or 'archived' in reason or 'Large number' in reason or 'No commits' in reason) else '✓' }}</span>{{ reason }}</li>{% endfor %}</ul></article>
+    </div>
+    <article class="panel details-panel"><div class="panel-title"><h3>Repository details</h3><span class="muted">Public API metadata</span></div>
+      <div class="details-grid">
+        <div><span>Owner</span><strong>{{ result.owner }}</strong></div><div><span>Default branch</span><strong>{{ result.default_branch }}</strong></div>
+        <div><span>Created</span><strong>{{ result.created_at }}</strong></div><div><span>Last metadata update</span><strong>{{ result.updated_at }}</strong></div>
+        <div><span>Last push</span><strong>{{ result.pushed_at }}</strong></div><div><span>License</span><strong>{{ result.license }}</strong></div>
+        <div><span>Archived</span><strong>{{ 'Yes' if result.archived else 'No' }}</strong></div><div><span>Recent commit sample</span><strong>{{ result.commit_count if result.commit_count is not none else 'Unavailable' }}</strong></div>
+      </div>
+    </article>
+    <p class="footnote">Data is fetched live from GitHub. Results may be limited by GitHub API rate limits. A low score does not necessarily mean poor code quality or a security problem.</p>
+  </section>
+  {% endif %}
+  <footer>Built with Flask · Python · GitHub REST API · Chart.js</footer>
+</main>
+{% if result and result.languages %}
+<script>
+const languageData = {{ result.languages|tojson }};
+const chartColors = ['#7c6cff','#37c6a0','#f5b84b','#f1789b','#55a6ff','#b5bdc9'];
+new Chart(document.getElementById('languageChart'), {
+  type: 'doughnut',
+  data: { labels: languageData.map(item => item[0]), datasets: [{ data: languageData.map(item => item[1]), backgroundColor: chartColors, borderWidth: 0, hoverOffset: 6 }] },
+  options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${context.label}: ${context.raw.toLocaleString()} bytes` } } } }
+});
+</script>
+{% endif %}
+</body></html>
